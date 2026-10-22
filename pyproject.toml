@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "subtitle-creator"
+version = "0.1.0"
+description = "Local MKV and MP4 subtitles powered by faster-whisper"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = ["faster-whisper>=1.2.1,<2", "numpy>=1.26,<3", "tqdm>=4.66,<5"]
+
+[project.scripts]
+subtitle-creator = "subtitle_creator.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["subtitle_creator*"]
