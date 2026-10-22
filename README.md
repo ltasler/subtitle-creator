@@ -16,8 +16,8 @@ cd /path/to/subtitle-creator
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install -e .
-subtitle-creator --help
+python -m pip install -r requirements.txt
+./subtitle-creator.sh --help
 ```
 
 Audio normally decodes directly with PyAV, which bundles FFmpeg libraries.
@@ -28,33 +28,35 @@ that codec. Missing audio tracks and decoding errors are reported per file.
 
 ## Usage
 
+Run the project through `./subtitle-creator.sh` from the repository directory.
+The script activates `.venv`, sets `LD_LIBRARY_PATH` for the installed NVIDIA
+libraries, and forwards all arguments to the CLI. No manual activation or export
+is needed for subsequent runs.
+
 ```bash
 # All MKV and MP4 files directly in a folder; detect each video's language
-subtitle-creator "/home/me/Videos"
+./subtitle-creator.sh "/home/me/Videos"
 
 # Include subfolders and use a larger model
-subtitle-creator "/home/me/Videos" --recursive --model large-v3
+./subtitle-creator.sh "/home/me/Videos" --recursive --model large-v3
 
 # Transcribe a single video with a known spoken language
-subtitle-creator "/home/me/Videos/film.mkv" --model medium --language sl
+./subtitle-creator.sh "/home/me/Videos/film.mkv" --model medium --language sl
 
 # Explicit CPU execution and overwrite existing subtitles
-subtitle-creator "/home/me/Videos" --device cpu --force
+./subtitle-creator.sh "/home/me/Videos" --device cpu --force
 
 # Try NVIDIA CUDA, automatically retrying on CPU if it fails
-subtitle-creator "/home/me/Videos" --device cuda
+./subtitle-creator.sh "/home/me/Videos" --device cuda
 
 # Download/cache weights into a chosen location on the first run
-subtitle-creator "/home/me/Videos" --model small --cache-dir "$HOME/.cache/subtitle-creator"
+./subtitle-creator.sh "/home/me/Videos" --model small --cache-dir "$HOME/.cache/subtitle-creator"
 
 # Subsequent runs can prohibit model downloads
-subtitle-creator "/home/me/Videos" --model small --cache-dir "$HOME/.cache/subtitle-creator" --offline
+./subtitle-creator.sh "/home/me/Videos" --model small --cache-dir "$HOME/.cache/subtitle-creator" --offline
 
 # Or supply an already downloaded CTranslate2-format Whisper model directory
-subtitle-creator "/home/me/Videos" --model-dir /path/to/local-whisper-model --offline
-
-# Also available without installing the console command, from this repository
-python -m subtitle_creator "/home/me/Videos"
+./subtitle-creator.sh "/home/me/Videos" --model-dir /path/to/local-whisper-model --offline
 ```
 
 `movie.mkv` produces `movie.srt` in the same directory. Extensions are case
@@ -88,16 +90,14 @@ files or an empty folder), `1` one or more failures, `2` invalid arguments/input
 
 CPU works without NVIDIA libraries. For CUDA, first install a working NVIDIA
 driver for your Fedora system and verify it with `nvidia-smi`. The faster-whisper
-GPU setup requires CUDA 12 cuBLAS and cuDNN 9. Inside the same virtual environment:
+GPU setup requires CUDA 12 cuBLAS and cuDNN 9, included in `requirements.txt`.
+The launcher sets their library search path automatically:
 
 ```bash
-python -m pip install nvidia-cublas-cu12 'nvidia-cudnn-cu12>=9,<10'
-export LD_LIBRARY_PATH="$(python -c 'import os, nvidia.cublas, nvidia.cudnn; print(os.path.join(nvidia.cublas.__path__[0], "lib") + ":" + os.path.join(nvidia.cudnn.__path__[0], "lib"))')${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-subtitle-creator "/home/me/Videos" --device auto
+./subtitle-creator.sh "/home/me/Videos" --device auto
 ```
 
-Set `LD_LIBRARY_PATH` in each shell before starting Python. These pip packages
-provide user-space libraries, not the NVIDIA driver. See the upstream
+These pip packages provide user-space libraries, not the NVIDIA driver. See the upstream
 [faster-whisper installation guidance](https://github.com/SYSTRAN/faster-whisper#gpu)
 for CUDA version compatibility and alternative installations.
 
