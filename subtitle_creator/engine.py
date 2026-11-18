@@ -47,11 +47,12 @@ def load_audio(video: Path):
                 ) / 32768.0
 
 
-def write_transcription(model, audio, output: Path, language: str | None) -> int:
+def write_transcription(model, audio, output: Path, language: str | None, *, vad_filter: bool = True) -> int:
     from tqdm import tqdm
 
     segments, info = model.transcribe(
-        audio, language=language, beam_size=5, vad_filter=True, word_timestamps=True,
+        audio, language=language, beam_size=5, vad_filter=vad_filter, word_timestamps=True,
+        vad_parameters={"threshold": 0.3},
     )
     label = "Language" if language else "Detected language"
     print(f"{label}: {info.language} (confidence {info.language_probability:.1%})", file=sys.stderr)
@@ -93,11 +94,12 @@ def main() -> int:
     parser.add_argument("--language")
     parser.add_argument("--cache-dir")
     parser.add_argument("--offline", action="store_true")
+    parser.add_argument("--no-vad", action="store_true")
     args = parser.parse_args()
     try:
         audio = load_audio(args.video)
         model = create_model(args.model, "cuda", args.offline, args.cache_dir)
-        count = write_transcription(model, audio, args.output, args.language)
+        count = write_transcription(model, audio, args.output, args.language, vad_filter=not args.no_vad)
         if not count:
             print("No speech detected; writing an empty SRT.", file=sys.stderr)
         return 0

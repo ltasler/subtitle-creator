@@ -43,6 +43,9 @@ is needed for subsequent runs.
 # Transcribe a single video with a known spoken language
 ./subtitle-creator.sh "/home/me/Videos/film.mkv" --model medium --language sl
 
+# Recover whispers that speech detection may filter out
+./subtitle-creator.sh "/home/me/Videos/film.mkv" --model medium --language en --no-vad --force
+
 # Explicit CPU execution and overwrite existing subtitles
 ./subtitle-creator.sh "/home/me/Videos" --device cpu --force
 
@@ -75,10 +78,15 @@ If two videos in the same directory share a stem (e.g. `movie.mp4` and
 The CLI reports file counts, model loading, detected language and confidence,
 and a progress bar measuring processed audio seconds. Initial model loading,
 audio decoding, and the first recognition window can take time before the bar
-advances. Silence is filtered with VAD, and timestamps map back to the original
-audio timeline. Word timestamp refinement is enabled; SRT cues use Whisper's
+advances. Silence is filtered with VAD at a speech threshold of 0.3, and timestamps
+map back to the original audio timeline. Word timestamp refinement is enabled; SRT cues use Whisper's
 segment start/end times rounded to milliseconds. Recognition and timing quality
 depend on the recording and model; review subtitles where precise timing matters.
+
+For missing whispers, try `--no-vad` to send all audio to Whisper instead of
+filtering it first. This can recover quiet speech, but may take longer and
+produce invented text during silence or background noise. Use `--force` to
+regenerate an existing SRT.
 
 Output is published atomically only after successful transcription. Failed or
 interrupted runs discard temporary files and preserve any previous SRT. A batch

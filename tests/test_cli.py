@@ -56,6 +56,35 @@ class SubtitleTests(unittest.TestCase):
         self.assertEqual(self.output.read_text(), "1\n01:00:00,000 --> 01:00:01,123\nŽivjo svet!\n\n")
         self.assertEqual(model.transcribe.call_args.kwargs["language"], "sl")
 
+    def test_no_vad_reaches_model_on_cpu(self):
+        model = Mock()
+        model.transcribe.return_value = (
+            iter([SimpleNamespace(start=0, end=2, text="Quiet speech")]),
+            SimpleNamespace(language="en", language_probability=1, duration=2),
+        )
+        with patch.object(engine, "load_audio", return_value=[]), \
+                patch.object(engine, "create_model", return_value=model):
+            self.assertEqual(cli.main([str(self.video), "--device", "cpu", "--no-vad"]), 0)
+        self.assertFalse(model.transcribe.call_args.kwargs["vad_filter"])
+        self.assertIn("Quiet speech", self.output.read_text())
+
+    def test_no_vad_is_forwarded_to_cuda_worker(self):
+        args = cli.build_parser().parse_args([str(self.video), "--no-vad"])
+        with patch.object(cli.subprocess, "run", return_value=SimpleNamespace(returncode=0)) as run:
+            self.assertTrue(cli.run_cuda(self.video, self.output, args))
+        self.assertIn("--no-vad", run.call_args.args[0])
+
+    def test_cuda_worker_disables_vad(self):
+        model = Mock()
+        model.transcribe.return_value = (
+            iter([]), SimpleNamespace(language="en", language_probability=1, duration=2),
+        )
+        argv = ["engine", str(self.video), str(self.output), "--model", "medium", "--no-vad"]
+        with patch("sys.argv", argv), patch.object(engine, "load_audio", return_value=[]), \
+                patch.object(engine, "create_model", return_value=model):
+            self.assertEqual(engine.main(), 0)
+        self.assertFalse(model.transcribe.call_args.kwargs["vad_filter"])
+
     def test_ffmpeg_fallback_uses_first_audio_track_and_cleans_temp(self):
         def extract(command, **kwargs):
             with wave.open(command[-1], "wb") as stream:
@@ -80,7 +109,7 @@ class SubtitleTests(unittest.TestCase):
     def test_cpu_failure_preserves_previous_srt_and_cleans_partial_output(self):
         self.output.write_text("previous subtitles")
 
-        def fail(model, audio, output, language):
+        def fail(model, audio, output, language, *, vad_filter=True):
             output.write_text("partial")
             raise RuntimeError("inference failed")
 
@@ -94,7 +123,7 @@ class SubtitleTests(unittest.TestCase):
     def test_cuda_failure_retries_cpu_and_disables_cuda_for_remaining_files(self):
         (self.root / "second.mkv").touch()
 
-        def transcribe(model, audio, output, language):
+        def transcribe(model, audio, output, language, *, vad_filter=True):
             output.write_text("complete")
             return 1
 
@@ -112,7 +141,7 @@ class SubtitleTests(unittest.TestCase):
     def test_batch_continues_after_a_bad_video(self):
         (self.root / "second.mkv").touch()
 
-        def transcribe(model, audio, output, language):
+        def transcribe(model, audio, output, language, *, vad_filter=True):
             output.write_text("complete")
             return 1
 
@@ -139,7 +168,7 @@ class SubtitleTests(unittest.TestCase):
         self.assertEqual(error.exception.code, 2)
 
     def test_ctrl_c_cleans_partial_file(self):
-        def interrupt(model, audio, output, language):
+        def interrupt(model, audio, output, language, *, vad_filter=True):
             output.write_text("partial")
             raise KeyboardInterrupt()
 

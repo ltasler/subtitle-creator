@@ -36,6 +36,8 @@ def run_cuda(video: Path, output: Path, args) -> bool:
         command.extend(["--language", args.language])
     if args.offline:
         command.append("--offline")
+    if args.no_vad:
+        command.append("--no-vad")
     if args.cache_dir:
         command.extend(["--cache-dir", str(args.cache_dir)])
     return subprocess.run(command, check=False).returncode == 0
@@ -60,6 +62,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--model", choices=("small", "medium", "large-v3"), default="small")
     parser.add_argument("--model-dir", type=Path, help="Use a local CTranslate2 Whisper model directory")
     parser.add_argument("--language", help="Spoken language code, e.g. en, sl, de (default: detect)")
+    parser.add_argument("--no-vad", action="store_true",
+                        help="Transcribe all audio without speech filtering; can recover whispers")
     parser.add_argument("--device", choices=("auto", "cuda", "cpu"), default="auto",
                         help="CUDA failures automatically retry on CPU (default: auto)")
     parser.add_argument("--force", action="store_true", help="Replace existing SRT files")
@@ -122,7 +126,9 @@ def main(argv=None) -> int:
                                 str(args.model_dir or args.model), "cpu", args.offline,
                                 str(args.cache_dir) if args.cache_dir else None,
                             )
-                        count = engine.write_transcription(cpu_model, audio, output, args.language)
+                        count = engine.write_transcription(
+                            cpu_model, audio, output, args.language, vad_filter=not args.no_vad,
+                        )
                         if not count:
                             print("No speech detected; writing an empty SRT.", file=sys.stderr)
                     if publish(output, destination, args.force):
